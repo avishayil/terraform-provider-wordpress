@@ -32,14 +32,14 @@ func TestWordpressProvider_Schema(t *testing.T) {
 func TestWordpressProvider_Resources(t *testing.T) {
 	wp := &WordpressProvider{}
 	res := wp.Resources(context.Background())
-	assert.Len(t, res, 1)
+	assert.Len(t, res, 5)
 	assert.NotNil(t, res[0])
 }
 
 func TestWordpressProvider_DataSources(t *testing.T) {
 	wp := &WordpressProvider{}
 	ds := wp.DataSources(context.Background())
-	assert.Empty(t, ds)
+	assert.Len(t, ds, 1)
 }
 
 func TestWordpressProvider_Functions(t *testing.T) {

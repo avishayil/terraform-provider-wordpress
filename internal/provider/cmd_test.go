@@ -36,7 +36,7 @@ func getTestConfig() *WPConfig {
 
 func TestBuildWPArgs_AllOptions(t *testing.T) {
 	cfg := getTestConfig()
-	args := buildWPArgs(cfg, "plugin", "install", "akismet")
+	args := BuildWPArgs(cfg, "plugin", "install", "akismet")
 
 	assert.Contains(t, args, "--ssh="+cfg.SSHTarget)
 	assert.Contains(t, args, "--allow-root")
@@ -55,13 +55,13 @@ func TestBuildWPArgs_SomeOptions(t *testing.T) {
 		AllowRoot:  false,
 		RemotePath: "/foo",
 	}
-	args := buildWPArgs(cfg, "theme", "install")
+	args := BuildWPArgs(cfg, "theme", "install")
 	assert.Equal(t, []string{"--path=/foo", "theme", "install"}, args)
 }
 
 func TestBuildWPArgs_NoOptions(t *testing.T) {
 	cfg := &WPConfig{}
-	args := buildWPArgs(cfg, "theme", "status")
+	args := BuildWPArgs(cfg, "theme", "status")
 	assert.Equal(t, []string{"theme", "status"}, args)
 }
 
@@ -74,7 +74,7 @@ func TestRunWP_Success(t *testing.T) {
 		err:    nil,
 	}
 
-	err := runWP(getTestConfig(), "plugin", "install", "akismet", "--activate")
+	err := RunWP(getTestConfig(), "plugin", "install", "akismet", "--activate")
 	assert.NoError(t, err)
 }
 
@@ -87,7 +87,7 @@ func TestRunWP_Failure(t *testing.T) {
 		err:    errors.New("exit code 1"),
 	}
 
-	err := runWP(getTestConfig(), "plugin", "install", "akismet")
+	err := RunWP(getTestConfig(), "plugin", "install", "akismet")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "wp")
 	assert.Contains(t, err.Error(), "plugin install akismet")
@@ -103,7 +103,7 @@ func TestRunWPWithOutput_Success(t *testing.T) {
 		err:    nil,
 	}
 
-	output, err := runWPWithOutput(getTestConfig(), "plugin", "status")
+	output, err := RunWPWithOutput(getTestConfig(), "plugin", "status")
 	assert.NoError(t, err)
 	assert.Equal(t, "plugin status ok", output)
 }
@@ -117,7 +117,7 @@ func TestRunWPWithOutput_Error(t *testing.T) {
 		err:    errors.New("fail"),
 	}
 
-	output, err := runWPWithOutput(getTestConfig(), "plugin", "status")
+	output, err := RunWPWithOutput(getTestConfig(), "plugin", "status")
 	assert.Error(t, err)
 	assert.Equal(t, "something went wrong", output)
 }

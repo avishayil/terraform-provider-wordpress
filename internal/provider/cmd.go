@@ -24,8 +24,8 @@ func (defaultCommander) CombinedOutput(name string, args ...string) ([]byte, err
 // cmdExec can be mocked in tests, otherwise uses the real executor.
 var cmdExec Commander = defaultCommander{}
 
-// buildWPArgs assembles wp-cli arguments consistently.
-func buildWPArgs(cfg *WPConfig, args ...string) []string {
+// BuildWPArgs assembles wp-cli arguments consistently.
+func BuildWPArgs(cfg *WPConfig, args ...string) []string {
 	allArgs := []string{}
 
 	if cfg.SSHTarget != "" {
@@ -44,9 +44,9 @@ func buildWPArgs(cfg *WPConfig, args ...string) []string {
 	return allArgs
 }
 
-// runWP runs a wp-cli command and returns only an error (used for Create, Delete, Activate).
-func runWP(cfg *WPConfig, args ...string) error {
-	allArgs := buildWPArgs(cfg, args...)
+// RunWP runs a wp-cli command and returns only an error (used for Create, Delete, Activate).
+func RunWP(cfg *WPConfig, args ...string) error {
+	allArgs := BuildWPArgs(cfg, args...)
 	output, err := cmdExec.CombinedOutput("wp", allArgs...)
 	if err != nil {
 		return fmt.Errorf("wp %v failed: %s", allArgs, string(output))
@@ -54,9 +54,9 @@ func runWP(cfg *WPConfig, args ...string) error {
 	return nil
 }
 
-// runWPWithOutput runs a wp-cli command and returns both output and error (used for status checks).
-func runWPWithOutput(cfg *WPConfig, args ...string) (string, error) {
-	allArgs := buildWPArgs(cfg, args...)
+// RunWPWithOutput runs a wp-cli command and returns both output and error (used for status checks).
+func RunWPWithOutput(cfg *WPConfig, args ...string) (string, error) {
+	allArgs := BuildWPArgs(cfg, args...)
 	output, err := cmdExec.CombinedOutput("wp", allArgs...)
 	return string(output), err
 }

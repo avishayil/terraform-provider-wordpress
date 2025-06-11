@@ -78,7 +78,7 @@ func (r *wordpressPluginResource) Create(ctx context.Context, req resource.Creat
 		plan.Name.ValueString(), plan.Active.ValueBool())
 
 	// Install the plugin
-	if err := runWP(cfg, args...); err != nil {
+	if err := RunWP(cfg, args...); err != nil {
 		resp.Diagnostics.AddError("Failed to install plugin", err.Error())
 		return
 	}
@@ -87,14 +87,14 @@ func (r *wordpressPluginResource) Create(ctx context.Context, req resource.Creat
 	time.Sleep(3 * time.Second)
 
 	// Verify that the plugin was installed
-	if err := runWP(cfg, "plugin", "is-installed", plan.Name.ValueString()); err != nil {
+	if err := RunWP(cfg, "plugin", "is-installed", plan.Name.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Plugin not installed after install attempt",
 			fmt.Sprintf("Failed to verify plugin %s is installed: %v", plan.Name.ValueString(), err))
 		return
 	}
 
 	// Query plugin status
-	output, err := runWPWithOutput(cfg, "plugin", "status", plan.Name.ValueString())
+	output, err := RunWPWithOutput(cfg, "plugin", "status", plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to verify plugin status",
 			fmt.Sprintf("Command failed: %v\nOutput: %s", err, output))
@@ -108,7 +108,7 @@ func (r *wordpressPluginResource) Create(ctx context.Context, req resource.Creat
 	// If we wanted it inactive but it's active, explicitly deactivate it
 	if !plan.Active.ValueBool() && active {
 		fmt.Printf("DEBUG: Plugin was activated by default, deactivating...\n")
-		if err := runWP(cfg, "plugin", "deactivate", plan.Name.ValueString()); err != nil {
+		if err := RunWP(cfg, "plugin", "deactivate", plan.Name.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Failed to deactivate plugin", err.Error())
 			return
 		}
@@ -116,7 +116,7 @@ func (r *wordpressPluginResource) Create(ctx context.Context, req resource.Creat
 		// Wait for deactivation to take effect
 		time.Sleep(3 * time.Second)
 
-		output, err = runWPWithOutput(cfg, "plugin", "status", plan.Name.ValueString())
+		output, err = RunWPWithOutput(cfg, "plugin", "status", plan.Name.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to verify plugin status after deactivation",
 				fmt.Sprintf("Command failed: %v\nOutput: %s", err, output))
@@ -140,13 +140,13 @@ func (r *wordpressPluginResource) Read(ctx context.Context, req resource.ReadReq
 	}
 
 	// Check if plugin is installed
-	if err := runWP(cfg, "plugin", "is-installed", state.Name.ValueString()); err != nil {
+	if err := RunWP(cfg, "plugin", "is-installed", state.Name.ValueString()); err != nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
 	// Get plugin status
-	output, err := runWPWithOutput(cfg, "plugin", "status", state.Name.ValueString())
+	output, err := RunWPWithOutput(cfg, "plugin", "status", state.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get plugin status",
 			fmt.Sprintf("Command failed: %v\nOutput: %s", err, output))
@@ -186,10 +186,10 @@ func (r *wordpressPluginResource) Update(ctx context.Context, req resource.Updat
 
 		var err error
 		if plan.Active.ValueBool() {
-			err = runWP(cfg, "plugin", "activate", plan.Name.ValueString())
+			err = RunWP(cfg, "plugin", "activate", plan.Name.ValueString())
 			fmt.Printf("DEBUG: Activated plugin %s\n", plan.Name.ValueString())
 		} else {
-			err = runWP(cfg, "plugin", "deactivate", plan.Name.ValueString())
+			err = RunWP(cfg, "plugin", "deactivate", plan.Name.ValueString())
 			fmt.Printf("DEBUG: Deactivated plugin %s\n", plan.Name.ValueString())
 		}
 
@@ -207,7 +207,7 @@ func (r *wordpressPluginResource) Update(ctx context.Context, req resource.Updat
 	time.Sleep(3 * time.Second)
 
 	// Re-read status to reflect actual state
-	output, err := runWPWithOutput(cfg, "plugin", "status", plan.Name.ValueString())
+	output, err := RunWPWithOutput(cfg, "plugin", "status", plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to verify plugin status",
 			fmt.Sprintf("Command failed: %v\nOutput: %s", err, output))
@@ -231,7 +231,7 @@ func (r *wordpressPluginResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 
-	if err := runWP(cfg, "plugin", "delete", state.Name.ValueString()); err != nil {
+	if err := RunWP(cfg, "plugin", "delete", state.Name.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to delete plugin", err.Error())
 		return
 	}

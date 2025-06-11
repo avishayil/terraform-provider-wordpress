@@ -161,3 +161,215 @@ func TestAccWordpressPlugin_deactivate_not_active(t *testing.T) {
 		},
 	})
 }
+
+func TestAccWordpressTheme_installOnly(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: protoV6Factories(),
+		Steps: []resource.TestStep{
+			{
+				// First ensure we have at least one other theme to be active
+				Config: fmt.Sprintf(`
+provider "wordpress" {
+  ssh_target  = "%s"
+  remote_path = "/var/www/html"
+  allow_root  = true
+}
+
+resource "wordpress_theme" "default" {
+  name   = "twentytwentyfour"
+  active = true
+}
+`, sshTarget()),
+			},
+			{
+				// Now install our test theme without forcing active state
+				Config: fmt.Sprintf(`
+provider "wordpress" {
+  ssh_target  = "%s"
+  remote_path = "/var/www/html"
+  allow_root  = true
+}
+
+resource "wordpress_theme" "default" {
+  name   = "twentytwentyfour"
+  active = true
+}
+
+resource "wordpress_theme" "example" {
+  name   = "twentytwentythree"
+  # Let WordPress decide if it should be active or not
+  depends_on = [wordpress_theme.default]
+}
+`, sshTarget()),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("wordpress_theme.example", "name", "twentytwentythree"),
+					// Don't check active status as it depends on WordPress
+				),
+			},
+		},
+	})
+}
+
+func TestAccWordpressTheme_activateAndSwitch(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: protoV6Factories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+provider "wordpress" {
+  ssh_target  = "%s"
+  remote_path = "/var/www/html"
+  allow_root  = true
+}
+
+resource "wordpress_theme" "example" {
+  name   = "twentytwentytwo"
+  active = true
+}
+`, sshTarget()),
+				Check: resource.TestCheckResourceAttr("wordpress_theme.example", "active", "true"),
+			},
+			{
+				// fallback theme, non-destructive
+				Config: fmt.Sprintf(`
+provider "wordpress" {
+  ssh_target  = "%s"
+  remote_path = "/var/www/html"
+  allow_root  = true
+}
+
+resource "wordpress_theme" "fallback" {
+  name   = "twentytwentyone"
+  active = true
+}
+`, sshTarget()),
+			},
+		},
+	})
+}
+
+func TestAccWordpressOption_basic(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: protoV6Factories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+provider "wordpress" {
+  ssh_target  = "%s"
+  remote_path = "/var/www/html"
+  allow_root  = true
+}
+
+resource "wordpress_option" "site_name" {
+  name  = "blogname"
+  value = "Terraform Site"
+}
+`, sshTarget()),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("wordpress_option.site_name", "name", "blogname"),
+					resource.TestCheckResourceAttr("wordpress_option.site_name", "value", "Terraform Site"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWordpressSiteSettings_basic(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: protoV6Factories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+provider "wordpress" {
+  ssh_target  = "%s"
+  remote_path = "/var/www/html"
+  allow_root  = true
+}
+
+resource "wordpress_site_settings" "basic" {
+  site_name        = "My Terraform Site"
+  site_description = "IaC is awesome"
+  admin_email      = "admin@example.com"
+  timezone         = "Europe/London"
+  date_format      = "F j, Y"
+  time_format      = "g:i a"
+  start_of_week    = "1"
+}
+`, sshTarget()),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("wordpress_site_settings.basic", "site_name", "My Terraform Site"),
+					resource.TestCheckResourceAttr("wordpress_site_settings.basic", "timezone", "Europe/London"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWordpressUser_basic(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: protoV6Factories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+provider "wordpress" {
+  ssh_target  = "%s"
+  remote_path = "/var/www/html"
+  allow_root  = true
+}
+
+resource "wordpress_user" "admin" {
+  username     = "terraform_admin"
+  email        = "admin@terraform.dev"
+  password     = "SecureP@ss123"
+  role         = "administrator"
+  display_name = "Terraform Admin"
+  first_name   = "Terraform"
+  last_name    = "Admin"
+}
+`, sshTarget()),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("wordpress_user.admin", "username", "terraform_admin"),
+					resource.TestCheckResourceAttr("wordpress_user.admin", "role", "administrator"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWordpressUserDataSource_basic(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: protoV6Factories(),
+		Steps: []resource.TestStep{
+			{
+				PreConfig: func() {
+					cfg := &provider.WPConfig{
+						SSHTarget:  sshTarget(),
+						RemotePath: "/var/www/html",
+						AllowRoot:  true,
+					}
+					// Use meta update instead of user update for better compatibility
+					_ = provider.RunWP(cfg, "user", "meta", "update", "admin", "first_name", "Terraform")
+					_ = provider.RunWP(cfg, "user", "meta", "update", "admin", "last_name", "Admin")
+					// Give WordPress time to process the updates
+					time.Sleep(3 * time.Second)
+				},
+				Config: fmt.Sprintf(`
+provider "wordpress" {
+  ssh_target  = "%s"
+  remote_path = "/var/www/html"
+  allow_root  = true
+}
+
+data "wordpress_user" "admin" {
+  username = "admin"
+}
+`, sshTarget()),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("data.wordpress_user.admin", "username", "admin"),
+					resource.TestCheckResourceAttr("data.wordpress_user.admin", "first_name", "Terraform"),
+					resource.TestCheckResourceAttr("data.wordpress_user.admin", "last_name", "Admin"),
+				),
+			},
+		},
+	})
+}

@@ -73,11 +73,17 @@ func (p *WordpressProvider) Configure(ctx context.Context, req provider.Configur
 func (p *WordpressProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewPluginResource,
+		NewThemeResource,
+		NewOptionResource,
+		NewSiteSettingsResource,
+		NewUserResource,
 	}
 }
 
 func (p *WordpressProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return []func() datasource.DataSource{
+		NewUserDataSource,
+	}
 }
 
 func (p *WordpressProvider) Functions(ctx context.Context) []func() function.Function {
