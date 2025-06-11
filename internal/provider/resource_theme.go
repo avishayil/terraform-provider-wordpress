@@ -1,3 +1,6 @@
+// Copyright (c) Avishay Bar
+// SPDX-License-Identifier: MIT
+
 package provider
 
 import (
