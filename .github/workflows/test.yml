@@ -1,0 +1,157 @@
+name: Terraform Provider Tests
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+  push:
+    paths-ignore:
+      - 'README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: 🛠️ Build Provider
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: 📦 Download dependencies
+        run: go mod download
+
+      - name: 🔨 Build
+        run: go build -v .
+
+      - name: 🧹 Run Linters
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.1
+
+  generate:
+    name: 🧬 Generate Files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: ☁️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: 🧬 Run Code Generation
+        run: make generate
+
+      - name: 🔍 Check for uncommitted changes
+        run: |
+          set -eu
+          if ! git diff --quiet; then
+            echo
+            echo "❌ Unexpected differences found after 'make generate'."
+            echo "Please run 'make generate' locally and commit changes."
+            git diff --compact-summary
+            exit 1
+          fi
+
+  test:
+    name: ✅ Acceptance Tests (TF ${{ matrix.terraform }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - terraform: '1.0.*'
+            terraform_version_safe: '1_0'
+          - terraform: '1.1.*'
+            terraform_version_safe: '1_1'
+          - terraform: '1.2.*'
+            terraform_version_safe: '1_2'
+          - terraform: '1.3.*'
+            terraform_version_safe: '1_3'
+          - terraform: '1.4.*'
+            terraform_version_safe: '1_4'
+
+    env:
+      COMPOSE_PROJECT_NAME: wp-${{ matrix.terraform_version_safe }}
+
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: ☁️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ matrix.terraform }}
+          terraform_wrapper: false
+
+      - name: 🚀 Start WordPress environment
+        run: |
+          set -eu
+          echo "Installing PHP..."
+          sudo apt-get update
+          sudo apt-get install -y php php-cli php-curl php-mysql php-zip php-gd php-mbstring php-xml php-bcmath
+          
+          echo "Installing WP-CLI..."
+          curl -fsSL -o wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x wp-cli.phar
+          sudo mv wp-cli.phar /usr/local/bin/wp
+
+          echo "Starting Docker containers..."
+          docker compose up -d
+
+          echo "Waiting for WordPress..."
+          attempt=0
+          max_attempts=20
+          while :; do
+            if docker compose exec -T wordpress curl -s http://localhost/wp-admin | grep "moved"; then
+              echo "✅ WordPress is ready"
+              break
+            fi
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "❌ WordPress failed to initialize"
+              docker compose logs
+              exit 1
+            fi
+            attempt=$((attempt + 1))
+            echo "Waiting... attempt $attempt/$max_attempts"
+            sleep 10
+          done
+
+      - name: 🧪 Run acceptance tests
+        env:
+          TF_ACC: "1"
+          WP_CONTAINER_NAME: ${{ env.COMPOSE_PROJECT_NAME }}-wordpress
+        run: go test -v -cover ./internal/provider/
+
+      - name: 🪵 Docker logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: 🧹 Clean up
+        if: always()
+        run: docker compose down -v
